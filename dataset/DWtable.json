@@ -1,0 +1,56 @@
+{
+	"name": "DWtable",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "DWlinkedService",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlDWTable",
+		"schema": [
+			{
+				"name": "RecordId",
+				"type": "int",
+				"precision": 10
+			},
+			{
+				"name": "Region",
+				"type": "nvarchar"
+			},
+			{
+				"name": "Plant",
+				"type": "nvarchar"
+			},
+			{
+				"name": "DeviceId",
+				"type": "int",
+				"precision": 10
+			},
+			{
+				"name": "Temperature",
+				"type": "int",
+				"precision": 10
+			},
+			{
+				"name": "Humidity",
+				"type": "int",
+				"precision": 10
+			},
+			{
+				"name": "RecordedTime",
+				"type": "datetime",
+				"precision": 23,
+				"scale": 3
+			},
+			{
+				"name": "TempStatus",
+				"type": "nvarchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "ProcessedRecords"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

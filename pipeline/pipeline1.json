@@ -1,0 +1,428 @@
+{
+	"name": "pipeline1",
+	"properties": {
+		"activities": [
+			{
+				"name": "getMetadata",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderStoredProcedureName": "[dbo].[uspGetProcessableBlogs]"
+					},
+					"dataset": {
+						"referenceName": "blobmetadataTable",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "iterateallblob",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "getMetadata",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('getMetadata').output.value",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "set blob path",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "blobpath",
+								"value": {
+									"value": "@substring(item().path, 0, indexof(item().path, item().BlobName))",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "set blob name",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "set blob path",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "blobName",
+								"value": {
+									"value": "@{item().BlobName}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "processedDataToDWH",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "set blob name",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "DelimitedTextSource",
+									"storeSettings": {
+										"type": "AzureBlobStorageReadSettings",
+										"recursive": false,
+										"wildcardFileName": "*.*",
+										"enablePartitionDiscovery": false
+									},
+									"formatSettings": {
+										"type": "DelimitedTextReadSettings"
+									}
+								},
+								"sink": {
+									"type": "SqlDWSink",
+									"allowPolyBase": false
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"mappings": [
+										{
+											"source": {
+												"name": "Region",
+												"type": "String"
+											},
+											"sink": {
+												"name": "Region",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"name": "Plant",
+												"type": "String"
+											},
+											"sink": {
+												"name": "Plant",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"name": "DeviceId",
+												"type": "Int32"
+											},
+											"sink": {
+												"name": "DeviceId",
+												"type": "Int32"
+											}
+										},
+										{
+											"source": {
+												"name": "Temperature",
+												"type": "Int32"
+											},
+											"sink": {
+												"name": "Temperature",
+												"type": "Int32"
+											}
+										},
+										{
+											"source": {
+												"name": "Humidity",
+												"type": "Int32"
+											},
+											"sink": {
+												"name": "Humidity",
+												"type": "Int32"
+											}
+										},
+										{
+											"source": {
+												"name": "RecordedTime",
+												"type": "DateTime"
+											},
+											"sink": {
+												"name": "RecordedTime",
+												"type": "DateTime"
+											}
+										},
+										{
+											"source": {
+												"name": "TempStatus",
+												"type": "String"
+											},
+											"sink": {
+												"name": "TempStatus",
+												"type": "String"
+											}
+										}
+									]
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "processedDatablob",
+									"type": "DatasetReference",
+									"parameters": {
+										"filepath": {
+											"value": "@variables('blobpath')",
+											"type": "Expression"
+										},
+										"filename": {
+											"value": "@variables('blobName')",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DWtable",
+									"type": "DatasetReference"
+								}
+							]
+						},
+						{
+							"name": "processedDatatoADLSgen2",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "set blob name",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "DelimitedTextSource",
+									"storeSettings": {
+										"type": "AzureBlobStorageReadSettings",
+										"recursive": true
+									},
+									"formatSettings": {
+										"type": "DelimitedTextReadSettings"
+									}
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".csv"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"mappings": [
+										{
+											"source": {
+												"name": "Region",
+												"type": "String"
+											},
+											"sink": {
+												"name": "Region",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"name": "Plant",
+												"type": "String"
+											},
+											"sink": {
+												"name": "Plant",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"name": "DeviceId",
+												"type": "String"
+											},
+											"sink": {
+												"name": "DeviceId",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"name": "Temperature",
+												"type": "String"
+											},
+											"sink": {
+												"name": "Temperature",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"name": "Humidity",
+												"type": "String"
+											},
+											"sink": {
+												"name": "Humidity",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"name": "RecordedTime",
+												"type": "String"
+											},
+											"sink": {
+												"name": "RecordedTime",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"name": "TempStatus",
+												"type": "String"
+											},
+											"sink": {
+												"name": "TempStatus",
+												"type": "String"
+											}
+										}
+									]
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "processedDatablob",
+									"type": "DatasetReference",
+									"parameters": {
+										"filepath": {
+											"value": "@variables('blobpath')",
+											"type": "Expression"
+										},
+										"filename": {
+											"value": "@variables('blobName')",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "gen2destination",
+									"type": "DatasetReference",
+									"parameters": {
+										"filename": {
+											"value": "@variables('blobName')",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "update staus",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "processedDataToDWH",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "processedDatatoADLSgen2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[uspUpdateBlobMetadata]",
+								"storedProcedureParameters": {
+									"dlsLocation": {
+										"value": {
+											"value": "@{item().path}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"recordId": {
+										"value": {
+											"value": "@{item().recordid}",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "ASQLlinkedservice",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			}
+		],
+		"variables": {
+			"blobName": {
+				"type": "String"
+			},
+			"blobpath": {
+				"type": "String"
+			}
+		},
+		"annotations": []
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
